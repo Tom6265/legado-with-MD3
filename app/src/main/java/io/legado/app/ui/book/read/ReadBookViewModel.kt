@@ -5978,6 +5978,8 @@ class ReadBookViewModel(
         book.setTranslationMode(enabled)
         book.save()
         _uiState.update { it.copy(translationMode = enabled) }
+        // Drop cached layout so translation (or original) content is loaded fresh.
+        ReadBook.clearTextChapter()
         ReadBook.loadContent(false)
     }
 

@@ -117,7 +117,12 @@ fun AiProviderEditScreen(
         },
         floatingActionButton = {
             AppFloatingActionButton(
-                onClick = { onIntent(AiProviderEditIntent.SaveProvider) },
+                onClick = {
+                    // Ignore clicks while a save is already in flight (avoids duplicate providers).
+                    if (!state.isSaving) {
+                        onIntent(AiProviderEditIntent.SaveProvider)
+                    }
+                },
                 icon = Icons.Default.Save,
                 tooltipText = stringResource(R.string.ai_save_provider)
             )

@@ -1,5 +1,6 @@
 package io.legado.app.model.translation
 
+import io.legado.app.constant.AppLog
 import io.legado.app.data.entities.Book
 import io.legado.app.data.entities.BookChapter
 import io.legado.app.domain.gateway.TranslationCacheGateway
@@ -131,14 +132,20 @@ object TranslationManager : KoinComponent {
         )
 
         result.onSuccess { content ->
+            // Keep mixedContent as a fallback so observers that miss translatedContent
+            // can still refresh the page with the finished translation.
             taskFlow.update {
                 it.copy(
                     status = TranslationChapterStatus.Translated,
                     translatedContent = content,
-                    mixedContent = null
+                    mixedContent = content
                 )
             }
         }.onFailure { error ->
+            AppLog.put(
+                "Translation failed for chapter ${bookChapter.index}: ${error.message}",
+                error
+            )
             taskFlow.update {
                 it.copy(
                     status = TranslationChapterStatus.Failed,

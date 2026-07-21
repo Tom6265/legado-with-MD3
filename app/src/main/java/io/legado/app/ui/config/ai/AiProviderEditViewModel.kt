@@ -22,6 +22,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import splitties.init.appCtx
 
 class AiProviderEditViewModel(
@@ -50,6 +52,9 @@ class AiProviderEditViewModel(
 
     private val _effects = MutableSharedFlow<AiProviderEditEffect>(extraBufferCapacity = 16)
     val effects = _effects.asSharedFlow()
+
+    /** Serializes first-time provider creation so concurrent saves share one id. */
+    private val providerCreateMutex = Mutex()
 
     init {
         viewModelScope.launch {
@@ -166,12 +171,15 @@ class AiProviderEditViewModel(
     }
 
     private fun saveEditingModel() {
+        val editor = _uiState.value.editingModel ?: return
+        // Flip isSaving on the caller thread so a second click cannot race past the guard.
+        if (_uiState.value.isSaving) return
+        _uiState.update { it.copy(isSaving = true) }
         viewModelScope.launch {
-            val editor = _uiState.value.editingModel ?: return@launch
-            _uiState.update { it.copy(isSaving = true) }
             runCatching {
-                val providerId = _uiState.value.providerId
-                    ?: aiProfileGateway.saveProvider(_uiState.value.toDraft()).id
+                // Ensure a stable providerId before saveModel so concurrent saves
+                // cannot create multiple providers for the same edit session.
+                val providerId = ensureProviderId()
                 aiProfileGateway.saveModel(
                     AiModelDraft(
                         modelProfileId = editor.modelProfileId,
@@ -195,9 +203,13 @@ class AiProviderEditViewModel(
     }
 
     private fun saveProvider() {
+        // Guard against multi-click / concurrent SaveProvider intents creating duplicates.
+        // Set isSaving synchronously before launch so the second click is blocked immediately.
+        if (_uiState.value.isSaving) return
+        _uiState.update { it.copy(isSaving = true) }
         viewModelScope.launch {
-            _uiState.update { it.copy(isSaving = true) }
             runCatching {
+                ensureProviderId()
                 aiProfileGateway.saveProvider(_uiState.value.toDraft())
             }.onSuccess { provider ->
                 _uiState.update { it.copy(providerId = provider.id) }
@@ -208,6 +220,18 @@ class AiProviderEditViewModel(
             }
             _uiState.update { it.copy(isSaving = false) }
         }
+    }
+
+    /**
+     * Assigns a single stable provider id for this edit session if missing.
+     * Must be called before any path that may create a new provider row.
+     */
+    private suspend fun ensureProviderId(): String = providerCreateMutex.withLock {
+        _uiState.value.providerId?.takeIf { it.isNotBlank() }?.let { return it }
+        // Create via repository once, then pin id on state so subsequent saves upsert.
+        val provider = aiProfileGateway.saveProvider(_uiState.value.toDraft())
+        _uiState.update { it.copy(providerId = provider.id) }
+        return provider.id
     }
 
     private fun testConnection() {
@@ -236,9 +260,11 @@ class AiProviderEditViewModel(
     }
 
     private fun syncModels() {
+        if (_uiState.value.isSaving || _uiState.value.isFetchingModels) return
+        _uiState.update { it.copy(isSaving = true, isFetchingModels = true) }
         viewModelScope.launch {
-            _uiState.update { it.copy(isSaving = true, isFetchingModels = true) }
             runCatching {
+                ensureProviderId()
                 aiProfileGateway.saveProvider(_uiState.value.toDraft())
             }.onSuccess { provider ->
                 _uiState.update { it.copy(providerId = provider.id) }
