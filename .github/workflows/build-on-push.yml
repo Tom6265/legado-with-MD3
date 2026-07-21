@@ -48,7 +48,13 @@ jobs:
       - name: Build Debug APK
         run: |
           chmod +x gradlew
-          ./gradlew assembleAppDebug --no-daemon --no-configuration-cache
+          ./gradlew assembleAppDebug --no-daemon --no-configuration-cache --stacktrace 2>&1 | tee build.log
+          status=${PIPESTATUS[0]}
+          if [ "$status" -ne 0 ]; then
+            echo "===== Gradle failure tail ====="
+            tail -n 120 build.log
+            exit "$status"
+          fi
         env:
           COMMIT_NUMBER: ${{ github.run_number }}
           APP_VERSION_NAME: ${{ github.ref_name }}-${{ github.run_number }}

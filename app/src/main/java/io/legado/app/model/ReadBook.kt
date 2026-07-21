@@ -54,6 +54,7 @@ import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.takeWhile
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -942,6 +943,10 @@ object ReadBook : CoroutineScope by MainScope(), KoinComponent {
      * Start observing a translation task for real-time UI updates.
      * Collects mixedContent / final content and refreshes the page.
      * Stops when translation completes or fails.
+     *
+     * Note: StateFlow never completes, so we use [takeWhile] to end collection on
+     * terminal statuses. Do not use non-local returns from the collect lambda
+     * (compile error: launch/collect are not inline).
      */
     private fun startTranslationObserver(
         taskFlow: MutableStateFlow<TranslationChapterState>,
@@ -953,49 +958,51 @@ object ReadBook : CoroutineScope by MainScope(), KoinComponent {
 
         val job = launch {
             try {
-                taskFlow.collect { state ->
-                    when (state.status) {
-                        TranslationChapterStatus.Translating -> {
-                            // Prefer partial bilingual/mixed content; fall back silently if none yet.
-                            state.mixedContent?.let { mixed ->
-                                contentLoadFinish(
-                                    book,
-                                    chapter,
-                                    mixed,
-                                    upContent = true,
-                                    resetPageOffset = false
-                                )
+                taskFlow
+                    .takeWhile { state ->
+                        when (state.status) {
+                            TranslationChapterStatus.Translating -> {
+                                // Prefer partial bilingual/mixed content; fall back silently if none yet.
+                                state.mixedContent?.let { mixed ->
+                                    contentLoadFinish(
+                                        book,
+                                        chapter,
+                                        mixed,
+                                        upContent = true,
+                                        resetPageOffset = false
+                                    )
+                                }
+                                true
                             }
-                        }
-                        TranslationChapterStatus.Translated -> {
-                            val finalContent = state.translatedContent
-                                ?: state.mixedContent
-                                ?: TranslationManager.getCachedTranslation(book, chapter)
-                            if (finalContent != null) {
-                                contentLoadFinish(
-                                    book,
-                                    chapter,
-                                    finalContent,
-                                    upContent = true,
-                                    resetPageOffset = false
-                                )
+                            TranslationChapterStatus.Translated -> {
+                                val finalContent = state.translatedContent
+                                    ?: state.mixedContent
+                                    ?: TranslationManager.getCachedTranslation(book, chapter)
+                                if (finalContent != null) {
+                                    contentLoadFinish(
+                                        book,
+                                        chapter,
+                                        finalContent,
+                                        upContent = true,
+                                        resetPageOffset = false
+                                    )
+                                }
+                                false
                             }
-                            // Non-local return exits the launch block and ends collection.
-                            return@launch
-                        }
-                        TranslationChapterStatus.Failed -> {
-                            val message = state.errorMessage ?: "Translation failed"
-                            AppLog.put("章节翻译失败 index=$chapterIndex: $message")
-                            if (chapterIndex == durChapterIndex) {
-                                appCtx.toastOnUi(
-                                    appCtx.getString(R.string.translation_failed, message)
-                                )
+                            TranslationChapterStatus.Failed -> {
+                                val message = state.errorMessage ?: "Translation failed"
+                                AppLog.put("章节翻译失败 index=$chapterIndex: $message")
+                                if (chapterIndex == durChapterIndex) {
+                                    appCtx.toastOnUi(
+                                        appCtx.getString(R.string.translation_failed, message)
+                                    )
+                                }
+                                false
                             }
-                            return@launch
+                            TranslationChapterStatus.Idle -> true
                         }
-                        TranslationChapterStatus.Idle -> Unit
                     }
-                }
+                    .collect { /* handled in takeWhile */ }
             } finally {
                 translationObserverJobs.remove(chapterIndex)
             }
