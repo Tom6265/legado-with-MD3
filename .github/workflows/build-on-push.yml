@@ -1,0 +1,95 @@
+name: Build APK on Push
+
+on:
+  push:
+    branches:
+      - '**'
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.github/ISSUE_TEMPLATE/**'
+      - 'modules/web/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Assemble Debug APK
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Clear 18PlusList.txt
+        run: |
+          echo "清空 18PlusList.txt"
+          : > "$GITHUB_WORKSPACE/app/src/main/assets/18PlusList.txt"
+
+      - name: Remove Aliyun mirrors (unreliable in CI)
+        run: sed -i '/maven.aliyun.com/d' settings.gradle
+
+      - name: Build Debug APK
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleAppDebug --no-daemon --no-configuration-cache
+        env:
+          COMMIT_NUMBER: ${{ github.run_number }}
+          APP_VERSION_NAME: ${{ github.ref_name }}-${{ github.run_number }}
+
+      - name: Locate APKs
+        id: apk
+        run: |
+          APK_DIR="$GITHUB_WORKSPACE/app/build/outputs/apk/app/debug"
+          echo "APK output: $APK_DIR"
+          ls -la "$APK_DIR" || true
+          if [ -z "$(find "$APK_DIR" -name '*.apk' -print -quit)" ]; then
+            echo "No APK files found"
+            exit 1
+          fi
+          {
+            echo "dir=$APK_DIR"
+            echo "count=$(find "$APK_DIR" -name '*.apk' | wc -l)"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Rename APKs
+        run: |
+          APK_DIR="${{ steps.apk.outputs.dir }}"
+          SHORT_SHA="${GITHUB_SHA::7}"
+          BRANCH_SAFE="$(echo "${GITHUB_REF_NAME}" | sed 's#[/\\]#-#g')"
+          cd "$APK_DIR"
+          for f in *.apk; do
+            # Keep ABI / universal suffix from original name when present
+            suffix=""
+            case "$f" in
+              *arm64-v8a*) suffix="-arm64-v8a" ;;
+              *armeabi-v7a*) suffix="-armeabi-v7a" ;;
+              *universal*) suffix="-universal" ;;
+            esac
+            mv "$f" "legado-${BRANCH_SAFE}-${GITHUB_RUN_NUMBER}-${SHORT_SHA}${suffix}.apk"
+          done
+          ls -la
+
+      - name: Upload APK Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: legado-apk-${{ github.run_number }}
+          path: app/build/outputs/apk/app/debug/*.apk
+          if-no-files-found: error
+          retention-days: 14
