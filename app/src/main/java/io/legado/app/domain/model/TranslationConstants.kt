@@ -1,5 +1,15 @@
 package io.legado.app.domain.model
 
+enum class TranslationGranularity(val value: String) {
+    CHAPTER("chapter"),
+    PARAGRAPH("paragraph"),
+    SENTENCE("sentence");
+
+    companion object {
+        fun fromValue(value: String) = entries.find { it.value == value } ?: CHAPTER
+    }
+}
+
 object TranslationConstants {
 
     const val PROVIDER_OPENAI = "openai"
@@ -23,6 +33,33 @@ object TranslationConstants {
         "ru" to "Русский",
         "ar" to "العربية"
     )
+
+    val granularityDisplayNames = listOf("逐章翻译", "逐段翻译", "逐句翻译")
+    val granularityValues = listOf("chapter", "paragraph", "sentence")
+    const val DEFAULT_GRANULARITY = "chapter"
+
+    // Private-use tags so the marker never collides with chapter text; render layer swaps it for a spinner.
+    const val TRANSLATION_LOADING_MARKER = "￹TRANSLATING￺"
+    // Static fallback shown by the reader when animated spinner is not available.
+    const val TRANSLATION_LOADING_DISPLAY = "⌛"
+
+    const val PARAGRAPH_PROMPT =
+        "You are a professional translator. Translate the following paragraph to {language}. " +
+            "Return only the translation, no explanation, no commentary."
+
+    const val SENTENCE_PROMPT =
+        "You are a professional translator. Translate the following sentence to {language}. " +
+            "Return only the translation, no explanation, no commentary."
+
+    fun effectiveLanguage(targetLanguage: String, granularity: TranslationGranularity): String =
+        when (granularity) {
+            TranslationGranularity.CHAPTER -> targetLanguage
+            TranslationGranularity.PARAGRAPH -> "${targetLanguage}_para"
+            TranslationGranularity.SENTENCE -> "${targetLanguage}_sent"
+        }
+
+    fun replaceLoadingMarkerForDisplay(content: String): String =
+        content.replace(TRANSLATION_LOADING_MARKER, TRANSLATION_LOADING_DISPLAY)
 
     const val DEFAULT_PROMPT =
         """You are a professional literary translator, please translate according to the following requirements:

@@ -194,6 +194,50 @@ object ContentChunker {
         return result
     }
 
+    /**
+     * Paragraph mode: each paragraph is an independent chunk (no char limit).
+     */
+    fun chunkByParagraphs(text: String): List<TextChunk> {
+        if (text.isBlank()) return emptyList()
+        val normalized = text.replace("\r\n", "\n")
+        return normalized.split("\n\n")
+            .filter { it.isNotBlank() }
+            .mapIndexed { index, para -> TextChunk(index, para.trim(), listOf(index)) }
+    }
+
+    /**
+     * Sentence mode: split by paragraphs, then by sentence punctuation; each sentence is a chunk.
+     */
+    fun chunkBySentences(text: String): List<TextChunk> {
+        if (text.isBlank()) return emptyList()
+        val normalized = text.replace("\r\n", "\n")
+        val paragraphs = normalized.split("\n\n").filter { it.isNotBlank() }
+        val chunks = mutableListOf<TextChunk>()
+        for ((paraIdx, para) in paragraphs.withIndex()) {
+            val sentences = splitIntoSentences(para.trim())
+            for (sentence in sentences) {
+                if (sentence.isNotBlank()) {
+                    chunks.add(TextChunk(chunks.size, sentence.trim(), listOf(paraIdx)))
+                }
+            }
+        }
+        return chunks
+    }
+
+    private fun splitIntoSentences(text: String): List<String> {
+        val sentences = mutableListOf<String>()
+        val current = StringBuilder()
+        for (ch in text) {
+            current.append(ch)
+            if (ch in sentenceDelimiters) {
+                sentences.add(current.toString())
+                current.clear()
+            }
+        }
+        if (current.isNotEmpty()) sentences.add(current.toString())
+        return sentences
+    }
+
     fun merge(chunks: List<TextChunk>): String {
         return chunks.sortedBy { it.index }.joinToString("\n\n") { it.content }
     }

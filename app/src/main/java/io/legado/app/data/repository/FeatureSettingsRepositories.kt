@@ -300,6 +300,8 @@ class TranslationSettingsRepository : TranslationSettingsGateway {
                 },
                 targetLanguage = preferences.compatDsString(PreferKey.llmTargetLanguage) ?: "zh",
                 maxCharsPerChunk = preferences.compatDsInt(PreferKey.llmMaxCharsPerChunk) ?: 10000,
+                granularity = preferences.compatDsString(PreferKey.llmTranslationGranularity)
+                    ?: TranslationConstants.DEFAULT_GRANULARITY,
             )
         }
         .distinctUntilChanged()
@@ -309,6 +311,7 @@ class TranslationSettingsRepository : TranslationSettingsGateway {
             is TranslationSettingsUpdate.Provider -> PreferKey.llmProvider to update.value
             is TranslationSettingsUpdate.TargetLanguage -> PreferKey.llmTargetLanguage to update.value
             is TranslationSettingsUpdate.MaxCharsPerChunk -> PreferKey.llmMaxCharsPerChunk to update.value
+            is TranslationSettingsUpdate.Granularity -> PreferKey.llmTranslationGranularity to update.value
         }
         AppConfigStore.putAll(mapOf(key to value))
     }

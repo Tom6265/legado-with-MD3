@@ -83,6 +83,17 @@ fun TranslationConfigScreen(
                         entryValues = TranslationConstants.targetLanguages.map { it.first }.toTypedArray(),
                         onValueChange = { onIntent(TranslationConfigIntent.SetTargetLanguage(it)) },
                     )
+                    DropdownListSettingItem(
+                        title = stringResource(R.string.translation_granularity),
+                        selectedValue = settings.granularity,
+                        displayEntries = arrayOf(
+                            stringResource(R.string.translation_granularity_chapter),
+                            stringResource(R.string.translation_granularity_paragraph),
+                            stringResource(R.string.translation_granularity_sentence),
+                        ),
+                        entryValues = TranslationConstants.granularityValues.toTypedArray(),
+                        onValueChange = { onIntent(TranslationConfigIntent.SetGranularity(it)) },
+                    )
                     SliderSettingItem(
                         title = stringResource(R.string.llm_max_chars_per_chunk),
                         value = settings.maxCharsPerChunk.toFloat(),

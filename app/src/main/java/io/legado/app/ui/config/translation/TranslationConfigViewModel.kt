@@ -34,6 +34,8 @@ class TranslationConfigViewModel(
             is TranslationConfigIntent.SetTargetLanguage -> TranslationSettingsUpdate.TargetLanguage(intent.value)
             is TranslationConfigIntent.SetMaxCharsPerChunk ->
                 TranslationSettingsUpdate.MaxCharsPerChunk(intent.value)
+            is TranslationConfigIntent.SetGranularity ->
+                TranslationSettingsUpdate.Granularity(intent.value)
         }
         viewModelScope.launch { settingsGateway.update(update) }
     }

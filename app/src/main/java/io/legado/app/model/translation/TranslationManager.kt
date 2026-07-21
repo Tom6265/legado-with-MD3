@@ -3,6 +3,8 @@ package io.legado.app.model.translation
 import io.legado.app.data.entities.Book
 import io.legado.app.data.entities.BookChapter
 import io.legado.app.domain.gateway.TranslationCacheGateway
+import io.legado.app.domain.model.TranslationConstants
+import io.legado.app.domain.model.TranslationGranularity
 import io.legado.app.domain.usecase.TranslateChapterUseCase
 import io.legado.app.help.book.BookHelp
 import io.legado.app.help.coroutine.Coroutine
@@ -43,7 +45,7 @@ object TranslationManager : KoinComponent {
      */
     fun hasTranslatedCache(book: Book, chapter: BookChapter): Boolean {
         val cacheFile =
-            translationCacheGateway.getCacheFile(book, chapter, currentTargetLanguage())
+            translationCacheGateway.getCacheFile(book, chapter, currentEffectiveLanguage())
         return cacheFile.exists()
     }
 
@@ -52,7 +54,7 @@ object TranslationManager : KoinComponent {
      */
     fun getCachedTranslation(book: Book, chapter: BookChapter): String? {
         val cacheFile =
-            translationCacheGateway.getCacheFile(book, chapter, currentTargetLanguage())
+            translationCacheGateway.getCacheFile(book, chapter, currentEffectiveLanguage())
         return if (cacheFile.exists()) cacheFile.readText() else null
     }
 
@@ -107,12 +109,15 @@ object TranslationManager : KoinComponent {
     ) = withContext(Dispatchers.IO) {
         val key = getChapterKey(book, bookChapter)
         val taskFlow = _taskStateFlows[key] ?: return@withContext
+        val granularity =
+            TranslationGranularity.fromValue(TranslationConfig.llmTranslationGranularity)
 
         taskFlow.update { it.copy(status = TranslationChapterStatus.Translating) }
 
         val result = translateChapterUseCase.execute(
             book = book,
             bookChapter = bookChapter,
+            granularity = granularity,
             onProgress = { progress ->
                 taskFlow.update {
                     it.copy(
@@ -162,22 +167,27 @@ object TranslationManager : KoinComponent {
      * Delete translation cache and state for a chapter.
      */
     suspend fun deleteTranslationCache(book: Book, bookChapter: BookChapter) {
-        val targetLanguage = currentTargetLanguage()
+        val cacheLanguage = currentEffectiveLanguage()
         translationCacheGateway.deleteTranslation(
             book,
             bookChapter,
-            targetLanguage
+            cacheLanguage
         )
         translationCacheGateway.clearChunkCacheForChapter(
             book,
             bookChapter,
-            targetLanguage
+            cacheLanguage
         )
         clearChapterState(book.bookUrl, bookChapter.index)
     }
 
-    private fun currentTargetLanguage(): String {
-        return TranslationConfig.llmTargetLanguage
-    }
+    private fun currentGranularity(): TranslationGranularity =
+        TranslationGranularity.fromValue(TranslationConfig.llmTranslationGranularity)
+
+    private fun currentEffectiveLanguage(): String =
+        TranslationConstants.effectiveLanguage(
+            TranslationConfig.llmTargetLanguage,
+            currentGranularity()
+        )
 
 }

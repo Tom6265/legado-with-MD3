@@ -7,7 +7,7 @@ package io.legado.app.domain.model
 object PartialTranslationAssembler {
 
     /**
-     * Assemble mixed content from original chunks and translated portions.
+     * Assemble mixed content from original chunks and translated portions (chapter mode).
      *
      * @param originalChunks The original text chunks in order
      * @param translatedMap Map of chunk index to translated content
@@ -17,7 +17,7 @@ object PartialTranslationAssembler {
         if (originalChunks.isEmpty()) return ""
 
         val result = StringBuilder()
-        for ((index, chunk) in originalChunks.withIndex()) {
+        for (chunk in originalChunks) {
             val translated = translatedMap[chunk.index]
             val content = translated ?: chunk.content
 
@@ -28,6 +28,50 @@ object PartialTranslationAssembler {
         }
 
         return result.toString()
+    }
+
+    /**
+     * Paragraph bilingual assemble: original + "\n" + translation per paragraph, no blank lines between pairs.
+     * Inserts LOADING_MARKER at the end of the currently translating paragraph.
+     */
+    fun assembleParagraph(
+        originalChunks: List<TextChunk>,
+        translatedMap: Map<Int, String>,
+        translatingChunkIndex: Int? = null
+    ): String {
+        if (originalChunks.isEmpty()) return ""
+        return originalChunks.joinToString("\n") { chunk ->
+            val translation = translatedMap[chunk.index]
+            when {
+                translation != null -> "${chunk.content}\n$translation"
+                chunk.index == translatingChunkIndex ->
+                    "${chunk.content}${TranslationConstants.TRANSLATION_LOADING_MARKER}"
+                else -> chunk.content
+            }
+        }
+    }
+
+    /**
+     * Sentence bilingual assemble: translation appended directly after original (same line, no separator).
+     * Inserts LOADING_MARKER at the end of the currently translating sentence.
+     */
+    fun assembleSentence(
+        originalChunks: List<TextChunk>,
+        translatedMap: Map<Int, String>,
+        translatingChunkIndex: Int? = null
+    ): String {
+        if (originalChunks.isEmpty()) return ""
+        return buildString {
+            for (chunk in originalChunks) {
+                val translation = translatedMap[chunk.index]
+                when {
+                    translation != null -> append(chunk.content).append(translation)
+                    chunk.index == translatingChunkIndex ->
+                        append(chunk.content).append(TranslationConstants.TRANSLATION_LOADING_MARKER)
+                    else -> append(chunk.content)
+                }
+            }
+        }
     }
 
     /**

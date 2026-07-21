@@ -45,6 +45,11 @@ object TranslationConfig {
         "zh"
     )
 
+    var llmTranslationGranularity by prefDelegate(
+        PreferKey.llmTranslationGranularity,
+        TranslationConstants.DEFAULT_GRANULARITY
+    )
+
     var llmMaxCharsPerChunk by prefDelegate(
         PreferKey.llmMaxCharsPerChunk,
         10000
@@ -83,6 +88,8 @@ object TranslationConfig {
     val providerDisplayNames get() = TranslationConstants.providerDisplayNames
     val providerValues get() = TranslationConstants.providerValues
     val targetLanguages get() = TranslationConstants.targetLanguages
+    val granularityDisplayNames get() = TranslationConstants.granularityDisplayNames
+    val granularityValues get() = TranslationConstants.granularityValues
     const val MIN_TEMPERATURE = TranslationConstants.MIN_TEMPERATURE
     const val MAX_TEMPERATURE = TranslationConstants.MAX_TEMPERATURE
     const val DEFAULT_TEMPERATURE = TranslationConstants.DEFAULT_TEMPERATURE

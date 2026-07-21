@@ -12,6 +12,7 @@ sealed interface TranslationConfigIntent {
     data class SetProvider(val value: String) : TranslationConfigIntent
     data class SetTargetLanguage(val value: String) : TranslationConfigIntent
     data class SetMaxCharsPerChunk(val value: Int) : TranslationConfigIntent
+    data class SetGranularity(val value: String) : TranslationConfigIntent
 }
 
 sealed interface TranslationConfigEffect

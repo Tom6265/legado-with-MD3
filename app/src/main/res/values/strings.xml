@@ -1859,6 +1859,10 @@
     <string name="llm_model">Model</string>
     <string name="translation_options">Translation Options</string>
     <string name="llm_target_language">Target Language</string>
+    <string name="translation_granularity">Translation Granularity</string>
+    <string name="translation_granularity_chapter">Per Chapter</string>
+    <string name="translation_granularity_paragraph">Per Paragraph</string>
+    <string name="translation_granularity_sentence">Per Sentence</string>
     <string name="llm_max_chars_per_chunk">Max Chars Per Chunk</string>
     <string name="llm_concurrent_chunks">Concurrent Chunks</string>
     <string name="llm_retry_count">Retry Count</string>

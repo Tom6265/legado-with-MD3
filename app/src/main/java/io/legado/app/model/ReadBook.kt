@@ -11,6 +11,7 @@ import io.legado.app.data.entities.BookSource
 import io.legado.app.data.entities.readRecord.ReadRecord
 import io.legado.app.data.entities.readRecord.ReadRecordSession
 import io.legado.app.data.repository.ReadRecordRepository
+import io.legado.app.domain.model.TranslationConstants
 import io.legado.app.help.AppWebDav
 import io.legado.app.help.book.BookHelp
 import io.legado.app.help.book.ContentProcessor
@@ -986,6 +987,8 @@ object ReadBook : CoroutineScope by MainScope(), KoinComponent {
         if (canceled || chapter.index !in durChapterIndex - 1..durChapterIndex + 1) {
             return
         }
+        // Show a visible hourglass for in-progress bilingual translation chunks.
+        val displayContent = TranslationConstants.replaceLoadingMarkerForDisplay(content)
         chapterLoadingJobs[chapter.index]?.cancel()
         val job = Coroutine.async(this, start = CoroutineStart.LAZY) {
             val contentProcessor = ContentProcessor.get(book.name, book.origin)
@@ -994,7 +997,7 @@ object ReadBook : CoroutineScope by MainScope(), KoinComponent {
                 book.getUseReplaceRule()
             )
             val contents = contentProcessor
-                .getContent(book, chapter, content, includeTitle = false)
+                .getContent(book, chapter, displayContent, includeTitle = false)
             ensureActive()
             val textChapter = ChapterProvider.getTextChapterAsync(
                 this, book, chapter, displayTitle, contents, simulatedChapterSize
@@ -1095,6 +1098,7 @@ object ReadBook : CoroutineScope by MainScope(), KoinComponent {
         if (chapter.index !in durChapterIndex - 1..durChapterIndex + 1) {
             return
         }
+        val displayContent = TranslationConstants.replaceLoadingMarkerForDisplay(content)
         kotlin.runCatching {
             val contentProcessor = ContentProcessor.get(book.name, book.origin)
             val displayTitle = chapter.getDisplayTitle(
@@ -1102,7 +1106,7 @@ object ReadBook : CoroutineScope by MainScope(), KoinComponent {
                 book.getUseReplaceRule()
             )
             val contents = contentProcessor
-                .getContent(book, chapter, content, includeTitle = false)
+                .getContent(book, chapter, displayContent, includeTitle = false)
             val textChapter = ChapterProvider.getTextChapterAsync(
                 this@ReadBook, book, chapter, displayTitle, contents, simulatedChapterSize
             )
